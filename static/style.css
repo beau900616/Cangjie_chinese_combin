@@ -19,13 +19,13 @@ body {
 
 #sidebar {
   width: 120px;
-  border-left: 2px solid #ccc;
-  padding-left: 10px;
+  border-left: 0px solid #ccc;
+  padding-left: 0px;
 }
 
 .radical {
-  font-size: 28px;
+  font-size: 40px;
   cursor: grab;
-  margin: 8px 0;
+  margin: 0px;
   user-select: none;
 }
