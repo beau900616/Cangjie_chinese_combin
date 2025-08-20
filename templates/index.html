@@ -6,22 +6,13 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <div id="container">
-    <!-- 組字畫布 -->
-    <canvas id="canvas" width="400" height="400"></canvas>
-
-    <!-- 右側部首挑選欄 -->
-    <div id="sidebar">
-      <h3>部首挑選</h3>
-      <div class="radical" draggable="true">平</div>
-      <div class="radical" draggable="true">竺</div>
-      <div class="radical" draggable="true">口</div>
-      <div class="radical" draggable="true">心</div>
-      <div class="radical" draggable="true">木</div>
-    </div>
+  <div id="sidebar">
+    <div class="char-btn">日</div>
+    <div class="char-btn">月</div>
+    <div class="char-btn">木</div>
+    <div class="char-btn">水</div>
   </div>
-
-  <button id="saveBtn">儲存成圖片</button>
+  <canvas id="canvas" width="600" height="600"></canvas>
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>

@@ -1,86 +1,61 @@
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-// === 高 DPI 處理 ===
-const ratio = window.devicePixelRatio || 1;
-const width = 400;
-const height = 400;
-canvas.width = width * ratio;
-canvas.height = height * ratio;
-canvas.style.width = width + "px";
-canvas.style.height = height + "px";
-ctx.scale(ratio, ratio);
+let selectedChar = null;   // 當前選中的字
+let placedChars = [];      // 已放置的字方塊
 
-// === 狀態 ===
-let items = []; // 已放置的部首
-let currentChar = null;
-
-// === 對齊設定（讓文字放置時以中心點為基準） ===
-ctx.textAlign = "left";
-ctx.textBaseline = "top";
-
-// === 拖拉功能 ===
-document.querySelectorAll(".radical").forEach(el => {
-  el.addEventListener("dragstart", e => {
-    currentChar = e.target.innerText;
-    // 計算滑鼠點擊位置相對於文字元素左上角的偏移量
-    const rect = e.target.getBoundingClientRect();
-    dragOffsetX = e.clientX - rect.left;
-    dragOffsetY = e.clientY - rect.top;
+// 側邊選單點擊
+document.querySelectorAll(".char-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+     // 取消其他按鈕的 active
+    document.querySelectorAll(".char-btn").forEach(b => b.classList.remove("active"));
+    // 設定目前按鈕 active
+    btn.classList.add("active");
+    // 更新選中的字
+    selectedChar = btn.textContent;
   });
 });
 
-canvas.addEventListener("dragover", e => e.preventDefault());
+// 滑鼠移動 → 顯示跟隨的字
+canvas.addEventListener("mousemove", (e) => {
+  if (!selectedChar) return;
 
-canvas.addEventListener("drop", e => {
-  e.preventDefault();
-  if (currentChar) {
-    const rect = canvas.getBoundingClientRect();
-    let x = e.clientX - rect.left - dragOffsetX;
-    let y = e.clientY - rect.top - dragOffsetY + 7; //html內建的文字有上下的空白區塊
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
 
-    items.push({ char: currentChar, x, y, size: 40, rotation: 0 });
-    redraw();
-    currentChar = null;
-  }
+  redrawCanvas();
+
+  // 畫跟隨的字（半透明）
+  ctx.globalAlpha = 0.5;
+  ctx.font = "32px Microsoft JhengHei";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(selectedChar, x, y);
+  ctx.globalAlpha = 1.0;
 });
 
-// === 繪製 ===
-function redraw() {
-  ctx.clearRect(0, 0, width, height);
+// 點擊 → 放置字
+canvas.addEventListener("click", (e) => {
+  if (!selectedChar) return;
 
-  ctx.textBaseline = "top";   // 修正垂直對齊
-  ctx.textAlign = "left";     // 修正水平對齊
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
 
-  items.forEach(item => {
-    ctx.save();
-    ctx.translate(item.x, item.y);
-    ctx.rotate((item.rotation * Math.PI) / 180);
-    ctx.font = item.size + 'px "Microsoft JhengHei", sans-serif';
-    // 用 measureText() 拿字體的真實 metrics
-    const metrics = ctx.measureText(item.char);
-    const actualHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+  placedChars.push({ char: selectedChar, x, y });
+  redrawCanvas();
+});
 
-    // 在 y 座標上做補償，讓它更接近 HTML div 的 top
-    ctx.fillText(item.char, 0, -metrics.actualBoundingBoxAscent);
-    ctx.restore();
+// 重繪 Canvas（已放置字）
+function redrawCanvas() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.font = "32px Microsoft JhengHei";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  placedChars.forEach(item => {
+    ctx.fillText(item.char, item.x, item.y);
   });
 }
-
-// === 儲存按鈕 ===
-document.getElementById("saveBtn").addEventListener("click", () => {
-  fetch("/generate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ items })
-  })
-    .then(res => res.blob())
-    .then(blob => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "result.png";
-      a.click();
-      URL.revokeObjectURL(url);
-    });
-});
