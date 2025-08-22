@@ -7,9 +7,8 @@
 </head>
 <body>
   <div id="sidebar">
-    <div class="char-btn">日</div>
+    <div class="char-btn">橡皮擦</div>
     <div class="char-btn">月</div>
-    <div class="char-btn">木</div>
     <div class="char-btn">水</div>
     <div class="char-btn">火</div>
     <div class="char-btn">一</div>
@@ -22,6 +21,16 @@
     </div>
   </div>
   <canvas id="canvas" width="600" height="600"></canvas>
+
+  <!-- 右側 sidebar -->
+    <div id="sidebar-right">
+      <h3>操作區</h3>
+      <div id="fontsize-display">字體大小：32px</div>
+      <button id="bigger">放大</button>
+      <button id="smaller">縮小</button>
+      <button id="undo">復原</button>
+    </div>
+  </div>
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
