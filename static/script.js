@@ -5,10 +5,12 @@ const input = document.getElementById("newCharInput");
 const addBtn = document.getElementById("addBtn");
 const biggerBtn = document.getElementById("bigger");
 const smallerBtn = document.getElementById("smaller");
+const undoBtn = document.getElementById("undo");
 
 let selectedChar = null;   // 當前選中的字
 let placedChars = [];      // 已放置的字方塊
-let frontsize = 32;      // 當前的文字大小
+let frontsize = 150;      // 當前的文字大小
+updateFontsizeDisplay()  //更新字體大小的顯示
 
 // 側邊選單點擊
 document.querySelectorAll(".char-btn").forEach(btn => {
@@ -43,15 +45,15 @@ addBtn.addEventListener("click", () => {
 });
 
 biggerBtn.addEventListener("click", () => {
-  if (frontsize <= 100) {
-    frontsize = frontsize + 1
+  if (frontsize <= 200) {
+    frontsize = frontsize + 2
     updateFontsizeDisplay()
   }
 });
 
 smallerBtn.addEventListener("click", () => {
   if (frontsize >= 10) {
-    frontsize = frontsize - 1
+    frontsize = frontsize - 2
     updateFontsizeDisplay()
   }
 });
@@ -71,7 +73,7 @@ canvas.addEventListener("mousemove", (e) => {
   redrawCanvas();
 
   // 畫跟隨的字（半透明）
-  ctx.globalAlpha = 0.6;
+  ctx.globalAlpha = 0.8;
   ctx.font = frontsize + "px Microsoft JhengHei";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -79,7 +81,7 @@ canvas.addEventListener("mousemove", (e) => {
     // 畫白色矩形遮住
     ctx.fillStyle = "white";
     // 這裡設一個矩形大小，例如 40x40，可依需求調整
-    ctx.fillRect(x - 20, y - 20, 40, 40);
+    ctx.fillRect(x - 20, y - 20, frontsize, frontsize);
   }
   else {
     ctx.fillStyle = "black"; // 正常文字黑色
@@ -96,8 +98,16 @@ canvas.addEventListener("click", (e) => {
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
 
-  placedChars.push({ char: selectedChar, x, y });
+  placedChars.push({ char: selectedChar, char_frontsize: frontsize, x, y });
   redrawCanvas();
+});
+
+// 點擊 回復上一步
+undoBtn.addEventListener("click", () => {
+  if (placedChars.length > 0 ) {
+    placedChars.pop();  // 移除最後一個放上的字
+    redrawCanvas();  // 重新繪製
+  }
 });
 
 // 重繪 Canvas（已放置字）
@@ -113,9 +123,10 @@ function redrawCanvas() {
       // 畫白色矩形遮住
       ctx.fillStyle = "white";
       // 這裡設一個矩形大小，例如 40x40，可依需求調整
-      ctx.fillRect(item.x - 20, item.y - 20, 40, 40);
+      ctx.fillRect(item.x - 20, item.y - 20, frontsize, frontsize);
     }
     else {
+      ctx.font = item.char_frontsize + "px Microsoft JhengHei";
       ctx.fillStyle = "black"; // 正常文字黑色
       ctx.fillText(item.char, item.x, item.y);
     };
