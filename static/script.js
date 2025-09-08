@@ -19,7 +19,7 @@ class FunctionPlacedChars {
   }
 
   init() {
-    this._notify();
+    this._notify_changefrontsize();
   }
 
   activate(selectchar_input) {
@@ -27,6 +27,7 @@ class FunctionPlacedChars {
     this.canvas.style.cursor = "default";   // 回復預設模式
     this.selectedChar = selectchar_input;
     console.log("文字模式啟動");
+    console.log("選擇這個字 : " + this.selectedChar);
   }
 
   deactivate() {
@@ -38,21 +39,29 @@ class FunctionPlacedChars {
     return this.active
   }
 
+  get_selectedchar() {
+    return this.selectedChar;
+  }
+
+  get_frontsize() {
+    return this.frontsize;
+  }
+
   bigger_frontsize() {
     if (this.frontsize <= 200) {
       this.frontsize = this.frontsize + 2
-      this._notify();
+      this._notify_changefrontsize();
     }
   }
 
   smaller_frontsize() {
     if (this.frontsize >= 10) {
       this.frontsize = this.frontsize - 2
-      this._notify();
+      this._notify_changefrontsize();
     }
   }
 
-  _notify() {
+  _notify_changefrontsize() {
     const event = new CustomEvent("fontsizeChange", {
       detail: { frontsize: this.frontsize }
     });
@@ -87,6 +96,40 @@ class FunctionCutImage {
     this.canvas.style.cursor = "default";   // 回復預設模式
   }
 
+  get_startendxy() {
+    return {startX: this.startX, startY: this.startY, endX: this.endX, endY: this.endY};
+  }
+
+  set_XY(input_X, input_Y) {
+    // 如果沒有設定起點，先設定起點
+    if (this.startX === null && this.startY === null) {
+      this.startX = input_X;
+      this.startY = input_Y;
+      this.endX = null;
+      this.endY = null;
+      console.log("Cut Mode XY:", this.startX, this.startY, this.endX, this.endY);
+      return;
+    }
+
+    // 如果已經有起點，但還沒設定終點，就設定終點
+    if (this.startX !== null && this.startY !== null && this.endX === null && this.endY === null) {
+      this.endX = input_X;
+      this.endY = input_Y;
+      console.log("Cut Mode XY:", this.startX, this.startY, this.endX, this.endY);
+      return;
+    }
+
+    // 如果起點和終點都已經設定過，再重新開始新的剪裁
+    if (this.startX !== null && this.startY !== null && this.endX !== null && this.endY !== null) {
+      this.startX = input_X;
+      this.startY = input_Y;
+      this.endX = null;
+      this.endY = null;
+      console.log("Cut Mode XY:", this.startX, this.startY, this.endX, this.endY);
+      return;
+    }
+  }
+
   check_active() {
     return this.active
   }
@@ -113,6 +156,9 @@ class FunctionPasteCutImage {
   }
 }
 
+//文字、橡皮擦、剪取圖片放置紀錄
+let placed_blocks = [];
+
 // 建立三種運行模式
 const placedChars_Mode = new FunctionPlacedChars(canvas, ctx);
 const cutingImage_Mode = new FunctionCutImage(canvas, ctx);
@@ -135,14 +181,7 @@ smallerBtn.addEventListener("click", () => {
 //-----frontsize功能區-----------
 placedChars_Mode.init();
 
-let selectedChar = null;   // 當前選中的字
-let placed_blocks = [];      // 已放置的字與圖片方塊
-
-// === 剪下 / 貼上相關變數 ===
-let selecting = false;
-let cutImage = null;
-
-// 側邊選單點擊
+//-----左側文字選單選字功能區-----------
 document.querySelectorAll(".char-btn").forEach(btn => {
   btn.addEventListener("click", () => {
     if (btn.classList.contains("active")) {
@@ -164,7 +203,7 @@ document.querySelectorAll(".char-btn").forEach(btn => {
   });
 });
 
-// 點擊新增按鈕 → 新增部首
+//-----左側文字選單新增部首功能區-----------
 addBtn.addEventListener("click", () => {
   const value = input.value.trim();
   if (value) {
@@ -184,84 +223,81 @@ addBtn.addEventListener("click", () => {
   }
 });
 
-
-
-// 點擊剪下按鈕，並在畫布剪下滑鼠所框的矩形
+//-----右側功能選單切換為剪裁模式-----------
 cutBtn.addEventListener("click", () => {
   if (cutingImage_Mode.check_active()) {
     cutingImage_Mode.deactivate();
   } else {
-    cutingImage_Mode.activate()
+    cutingImage_Mode.activate();
+    placedChars_Mode.deactivate();
+    pasteCutImage_Mode.deactivate();
     document.querySelectorAll(".char-btn").forEach(b => b.classList.remove("active"));
   }
 });
 
-//點擊貼上的按鈕
+//-----右側功能選單切換為貼上模式-----------
 pasteBtn.addEventListener("click", () => {
-  isPasting = !isPasting; // 切換 true/false
-  if (isPasting) {
-    canvas.style.cursor = "default";   // 回復預設模式
-    // 取消其他按鈕的 active
-    document.querySelectorAll(".char-btn").forEach(b => b.classList.remove("active"));
-    selectedChar = null;
-    isCutting = false;
-    startX = null;
-    startY = null;
-    endX = null;
-    endY = null;
+  if (pasteCutImage_Mode.check_active()) {
+    pasteCutImage_Mode.deactivate();
   } else {
-    canvas.style.cursor = "default";   // 回復預設模式
+    pasteCutImage_Mode.activate();
+    cutingImage_Mode.deactivate();
+    placedChars_Mode.deactivate();
+    document.querySelectorAll(".char-btn").forEach(b => b.classList.remove("active"));
   }
   redrawCanvas();  // 重新繪製
 });
 
-// 滑鼠移動 → 顯示跟隨的字
+//-----滑鼠在畫布上的移動功能區-----------
 canvas.addEventListener("mousemove", (e) => {
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
+  
 
   // === 先清空並重繪已放置內容 ===
   redrawCanvas();
+  
+  if (placedChars_Mode.check_active()) {
+    // 畫跟隨的字（半透明）
+    ctx.globalAlpha = 0.8;
+    ctx.font = placedChars_Mode.get_frontsize() + "px Microsoft JhengHei";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    
+    if (placedChars_Mode.get_selectedchar() == '橡皮擦'){
+      // 畫白色矩形遮住
+      ctx.fillStyle = "white";
+      // 這裡設一個矩形大小，例如 40x40，可依需求調整
+      ctx.fillRect(x - 20, y - 20, placedChars_Mode.get_frontsize(), placedChars_Mode.get_frontsize());
+    }
+    else {
+      
+      ctx.fillStyle = "black"; // 正常文字黑色
+      ctx.fillText(placedChars_Mode.get_selectedchar(), x, y);
+    };
+    ctx.globalAlpha = 1.0;
+  }
 
-  if ((!selectedChar) && isCutting) {
+  if (cutingImage_Mode.check_active()) {
+    const { startX, startY, endX, endY } = cutingImage_Mode.get_startendxy();
     if (startX !== null && startY !== null && endX === null && endY === null) {
       // 畫出臨時矩形框
       ctx.strokeStyle = "blue";
       ctx.lineWidth = 2;
       ctx.strokeRect(startX, startY, x - startX, y - startY);
     }
+  }
+  if (pasteCutImage_Mode.check_active()) {
     return;
+    /* // === 貼上模式：跟隨 cutImage ===
+    if ((!selectedChar) && isPasting && cutImage) {
+      ctx.globalAlpha = 0.8;
+      ctx.drawImage(cutImage, x - cutImage.width/2, y - cutImage.height/2);
+      ctx.globalAlpha = 1.0;
+      return;
+  } */
   }
-
-  // === 貼上模式：跟隨 cutImage ===
-  if ((!selectedChar) && isPasting && cutImage) {
-    ctx.globalAlpha = 0.8;
-    ctx.drawImage(cutImage, x - cutImage.width/2, y - cutImage.height/2);
-    ctx.globalAlpha = 1.0;
-    return;
-  }
-
-  // === 放字模式：跟隨的字 ===
-  if (selectedChar) {
-    // 畫跟隨的字（半透明）
-    ctx.globalAlpha = 0.8;
-    ctx.font = frontsize + "px Microsoft JhengHei";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    if (selectedChar == '橡皮擦'){
-      // 畫白色矩形遮住
-      ctx.fillStyle = "white";
-      // 這裡設一個矩形大小，例如 40x40，可依需求調整
-      ctx.fillRect(x - 20, y - 20, frontsize, frontsize);
-    }
-    else {
-      ctx.fillStyle = "black"; // 正常文字黑色
-      ctx.fillText(selectedChar, x, y);
-    };
-    ctx.globalAlpha = 1.0;
-  }
-  
 });
 
 // 點擊畫布 放置字 or 檢取初始點
@@ -271,25 +307,25 @@ canvas.addEventListener("click", (e) => {
   const y = e.clientY - rect.top;
 
   if (placedChars_Mode.check_active()) {
-    placedChars.push({ char: selectedChar, char_frontsize: frontsize, x, y });
+    placed_blocks.push({ char: placedChars_Mode.get_selectedchar(), char_frontsize: placedChars_Mode.get_frontsize(), x, y });
     redrawCanvas();
   }
   if (cutingImage_Mode.check_active()) {
-
+    cutingImage_Mode.set_XY(x, y)
 
   }
   if (pasteCutImage_Mode.check_active()) {
-
-  }
-
-  if ((!selectedChar) && isPasting) {
-    
-    redrawCanvas(); // 每次更新座標都重新繪製
     return;
   }
 
+  /* if ((!selectedChar) && isPasting) {
+    
+    redrawCanvas(); // 每次更新座標都重新繪製
+    return;
+  } */
 
-  if ((!selectedChar) && isCutting) {
+
+ /*  if ((!selectedChar) && isCutting) {
     if (startX !== null && startY !== null && endX === null && endY === null) {
       // 第二次點擊 → 設定結束點
       endX = x;
@@ -324,14 +360,14 @@ canvas.addEventListener("click", (e) => {
     }
     redrawCanvas(); // 每次更新座標都重新繪製
     return;
-  }
+  } */
 
 });
 
 // 點擊 回復上一步
 undoBtn.addEventListener("click", () => {
-  if (placedChars.length > 0 ) {
-    placedChars.pop();  // 移除最後一個放上的字
+  if (placed_blocks.length > 0 ) {
+    placed_blocks.pop();  // 移除最後一個放上的字
     redrawCanvas();  // 重新繪製
   }
 });
@@ -339,20 +375,18 @@ undoBtn.addEventListener("click", () => {
 // 重繪 Canvas（已放置字）
 function redrawCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  ctx.font = "32px Microsoft JhengHei";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  placedChars.forEach(item => {
+  placed_blocks.forEach(item => {
     if (item.char == '橡皮擦'){
       // 畫白色矩形遮住
       ctx.fillStyle = "white";
       // 這裡設一個矩形大小，例如 40x40，可依需求調整
-      ctx.fillRect(item.x - 20, item.y - 20, frontsize, frontsize);
+      ctx.fillRect(item.x - 20, item.y - 20,  item.char_frontsize,  item.char_frontsize);
     }
     else {
-      ctx.font = item.char_frontsize + "px Microsoft JhengHei";
+      ctx.font =  item.char_frontsize + "px Microsoft JhengHei";
       ctx.fillStyle = "black"; // 正常文字黑色
       ctx.fillText(item.char, item.x, item.y);
     };
