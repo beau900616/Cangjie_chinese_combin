@@ -18,10 +18,6 @@ class FunctionPlacedChars {
     this.selectedChar = null;
   }
 
-  init() {
-    this._notify_changefrontsize();
-  }
-
   activate(selectchar_input) {
     this.active = true;
     this.canvas.style.cursor = "default";   // 回復預設模式
@@ -177,9 +173,6 @@ biggerBtn.addEventListener("click", () => {
 smallerBtn.addEventListener("click", () => {
   placedChars_Mode.smaller_frontsize();
 });
-
-//-----frontsize功能區-----------
-placedChars_Mode.init();
 
 //-----左側文字選單選字功能區-----------
 document.querySelectorAll(".char-btn").forEach(btn => {
