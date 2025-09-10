@@ -289,14 +289,12 @@ canvas.addEventListener("mousemove", (e) => {
     }
   }
   if (pasteCutImage_Mode.check_active()) {
-    return;
-    /* // === 貼上模式：跟隨 cutImage ===
-    if ((!selectedChar) && isPasting && cutImage) {
-      ctx.globalAlpha = 0.8;
-      ctx.drawImage(cutImage, x - cutImage.width/2, y - cutImage.height/2);
-      ctx.globalAlpha = 1.0;
-      return;
-  } */
+    // 畫跟隨的圖片（半透明）
+    ctx.globalAlpha = 0.7;
+    const imgW = cutImage.width;
+    const imgH = cutImage.height;
+    ctx.drawImage(cutImage, x - imgW / 2, y - imgH / 2); 
+    ctx.globalAlpha = 1.0;
   }
 });
 
@@ -312,26 +310,10 @@ canvas.addEventListener("click", (e) => {
   }
   if (cutingImage_Mode.check_active()) {
     cutingImage_Mode.set_XY(x, y)
-
-  }
-  if (pasteCutImage_Mode.check_active()) {
-    return;
-  }
-
-  /* if ((!selectedChar) && isPasting) {
-    
-    redrawCanvas(); // 每次更新座標都重新繪製
-    return;
-  } */
-
-
- /*  if ((!selectedChar) && isCutting) {
-    if (startX !== null && startY !== null && endX === null && endY === null) {
-      // 第二次點擊 → 設定結束點
-      endX = x;
-      endY = y;
-
+    const { startX, startY, endX, endY } = cutingImage_Mode.get_startendxy();
+    if (startX !== null && startY !== null && endX !== null && endY !== null) {
       // 取出矩形區塊，生成 cutImage
+      redrawCanvas(); // 重繪，避免藍框殘留
       const w = endX - startX;
       const h = endY - startY;
 
@@ -340,28 +322,50 @@ canvas.addEventListener("click", (e) => {
         tempCanvas.width = w;
         tempCanvas.height = h;
         const tempCtx = tempCanvas.getContext("2d");
+
+        // 先把選取區域畫到 tempCanvas
         tempCtx.drawImage(canvas, startX, startY, w, h, 0, 0, w, h);
+
+        // 讀取像素資料
+        const imageData = tempCtx.getImageData(0, 0, w, h);
+        const data = imageData.data;
+
+        // 將接近白色的像素設為透明
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const a = data[i + 3];
+
+          // 判斷是否接近白色（這裡設閾值 240，可依需求調整）
+          if (r > 240 && g > 240 && b > 240) {
+            data[i + 3] = 0; // 透明
+          }
+        }
+
+        // 更新回去
+        tempCtx.putImageData(imageData, 0, 0);
+
+        // 轉成圖片
         cutImage = new Image();
-        cutImage.src = tempCanvas.toDataURL();
-         // === 顯示到右邊功能欄 ===
+        cutImage.src = tempCanvas.toDataURL("image/png");
+
+        // === 顯示到右邊功能欄 ===
         const cutResultDiv = document.getElementById("cutResult");
         cutResultDiv.innerHTML = ""; // 清空舊的
         cutResultDiv.appendChild(cutImage);
 
-        console.log("已擷取矩形區域並顯示在功能欄");
+        console.log("已擷取矩形區域並去掉白色背景，顯示在功能欄");
       }
-
-    } else {
-      // 第一次點擊 或者 已經有完整的四個座標 → 重新設定
-      startX = x;
-      startY = y;
-      endX = null;
-      endY = null;
     }
-    redrawCanvas(); // 每次更新座標都重新繪製
-    return;
-  } */
 
+  }
+  if (pasteCutImage_Mode.check_active() && cutImage) {
+    const imgW = cutImage.width;
+    const imgH = cutImage.height;
+    placed_blocks.push({type: "image", image: cutImage, x: x - imgW / 2, y: y - imgH / 2, w: imgW, h: imgH});
+    redrawCanvas();
+  }
 });
 
 // 點擊 回復上一步
@@ -379,7 +383,10 @@ function redrawCanvas() {
   ctx.textBaseline = "middle";
 
   placed_blocks.forEach(item => {
-    if (item.char == '橡皮擦'){
+    if (item.type === "image") {
+      ctx.drawImage(item.image, item.x, item.y, item.w, item.h);
+    }
+    else if (item.char == '橡皮擦'){
       // 畫白色矩形遮住
       ctx.fillStyle = "white";
       // 這裡設一個矩形大小，例如 40x40，可依需求調整
