@@ -7,6 +7,7 @@ const biggerBtn = document.getElementById("bigger");
 const smallerBtn = document.getElementById("smaller");
 const undoBtn = document.getElementById("undo");
 const cutBtn = document.getElementById("cut");
+const lassoBtn = document.getElementById("lasso");
 const pasteBtn = document.getElementById("paste");
 
 class FunctionPlacedChars {
@@ -131,6 +132,66 @@ class FunctionCutImage {
   }
 }
 
+class FunctionLasso {
+  constructor(canvas, ctx) {
+    this.canvas = canvas;
+    this.ctx = ctx;
+    this.active = false;
+    this.points = []; // 存路徑點
+    this.isDrawing = false;
+  }
+
+  activate() {
+    this.active = true;
+    this.points = [];
+    this.isDrawing = false;
+    this.canvas.style.cursor = "crosshair";
+    console.log("智慧套索模式啟動");
+  }
+
+  deactivate() {
+    this.active = false;
+    this.points = [];
+    this.isDrawing = false;
+    this.canvas.style.cursor = "default";
+  }
+
+  check_active() {
+    return this.active;
+  }
+
+  set_isDrawing() {
+    this.isDrawing = true;
+  }
+
+  check_isDrawing() {
+    return this.isDrawing;
+  }
+
+  addPoints(x, y) {
+    this.points.push({ x, y });
+  }
+
+  getPoints() {
+    return this.points;
+  }
+
+  clearPoints() {
+    this.points = [];
+  }
+
+  checkPointsCircle(threshold = 10) {
+    if (this.points.length < 3) return false; // 至少三點才可能形成區域
+    const first = this.points[0];
+    const last = this.points[this.points.length - 1];
+    const dx = first.x - last.x;
+    const dy = first.y - last.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    return dist < threshold;
+  }
+}
+
+
 class FunctionPasteCutImage {
   constructor(canvas, ctx) {
     this.canvas = canvas;
@@ -158,6 +219,7 @@ let placed_blocks = [];
 // 建立三種運行模式
 const placedChars_Mode = new FunctionPlacedChars(canvas, ctx);
 const cutingImage_Mode = new FunctionCutImage(canvas, ctx);
+const lasso_Mode = new FunctionLasso(canvas, ctx);
 const pasteCutImage_Mode = new FunctionPasteCutImage(canvas, ctx);
 
 //-----frontsize功能區-----------
@@ -191,6 +253,7 @@ document.querySelectorAll(".char-btn").forEach(btn => {
       placedChars_Mode.activate(btn.textContent);
       cutingImage_Mode.deactivate();
       pasteCutImage_Mode.deactivate();
+      lasso_Mode.deactivate();
     }
     redrawCanvas();
   });
@@ -221,11 +284,13 @@ cutBtn.addEventListener("click", () => {
   if (cutingImage_Mode.check_active()) {
     cutingImage_Mode.deactivate();
   } else {
-    cutingImage_Mode.activate();
     placedChars_Mode.deactivate();
     pasteCutImage_Mode.deactivate();
+    lasso_Mode.deactivate();
+    cutingImage_Mode.activate();
     document.querySelectorAll(".char-btn").forEach(b => b.classList.remove("active"));
   }
+  redrawCanvas();  // 重新繪製
 });
 
 //-----右側功能選單切換為貼上模式-----------
@@ -233,9 +298,24 @@ pasteBtn.addEventListener("click", () => {
   if (pasteCutImage_Mode.check_active()) {
     pasteCutImage_Mode.deactivate();
   } else {
-    pasteCutImage_Mode.activate();
     cutingImage_Mode.deactivate();
     placedChars_Mode.deactivate();
+    lasso_Mode.deactivate();
+    pasteCutImage_Mode.activate();
+    document.querySelectorAll(".char-btn").forEach(b => b.classList.remove("active"));
+  }
+  redrawCanvas();  // 重新繪製
+});
+
+//-----右側功能選單切換為智慧套索模式-----------
+lassoBtn.addEventListener("click", () => {
+  if (lasso_Mode.check_active()) {
+    lasso_Mode.deactivate();
+  } else {
+    pasteCutImage_Mode.deactivate();
+    cutingImage_Mode.deactivate();
+    placedChars_Mode.deactivate();
+    lasso_Mode.activate();
     document.querySelectorAll(".char-btn").forEach(b => b.classList.remove("active"));
   }
   redrawCanvas();  // 重新繪製
@@ -281,6 +361,30 @@ canvas.addEventListener("mousemove", (e) => {
       ctx.strokeRect(startX, startY, x - startX, y - startY);
     }
   }
+
+  if (lasso_Mode.check_active() && lasso_Mode.check_isDrawing()) {
+    const pts = lasso_Mode.getPoints();
+    if (pts.length > 0) {
+      ctx.strokeStyle = "blue";
+      ctx.setLineDash([5, 5]); // 虛線
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) {
+        ctx.lineTo(pts[i].x, pts[i].y);
+      }
+      ctx.lineTo(x, y); // 動態跟隨游標
+      ctx.stroke();
+      ctx.setLineDash([]); // 還原
+      // 畫每個點的小圓
+      ctx.fillStyle = "blue";
+      pts.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2); // 半徑3px的小圓
+        ctx.fill();
+      });
+    }
+  }
+
   if (pasteCutImage_Mode.check_active()) {
     // 畫跟隨的圖片（半透明）
     ctx.globalAlpha = 0.7;
@@ -351,7 +455,74 @@ canvas.addEventListener("click", (e) => {
         console.log("已擷取矩形區域並去掉白色背景，顯示在功能欄");
       }
     }
+  }
+  if (lasso_Mode.check_active()) {
+    if (lasso_Mode.check_isDrawing()) {
+      lasso_Mode.addPoints(x, y);
+      if (lasso_Mode.checkPointsCircle()) {
+        console.log('智慧套索完成')
+        // === 先清空並重繪已放置內容 ===
+        redrawCanvas();
+        const pts = lasso_Mode.getPoints();
+        // 計算 bounding box
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        pts.forEach(p => {
+          if (p.x < minX) minX = p.x;
+          if (p.y < minY) minY = p.y;
+          if (p.x > maxX) maxX = p.x;
+          if (p.y > maxY) maxY = p.y;
+        });
+        const w = Math.ceil(maxX - minX);
+        const h = Math.ceil(maxY - minY);
 
+        // === 建立暫存畫布 (大小就是套索範圍) ===
+        const tempCanvas = document.createElement("canvas");
+        tempCanvas.width = w;
+        tempCanvas.height = h;
+        const tempCtx = tempCanvas.getContext("2d");
+
+        // === 設置裁切區域 (把路徑平移到局部座標) ===
+        tempCtx.beginPath();
+        tempCtx.moveTo(pts[0].x - minX, pts[0].y - minY);
+        for (let i = 1; i < pts.length; i++) {
+          tempCtx.lineTo(pts[i].x - minX, pts[i].y - minY);
+        }
+        tempCtx.closePath();
+        tempCtx.clip();
+
+        // === 繪製原始畫布內容到暫存 (只取 bounding box 區域) ===
+        tempCtx.drawImage(canvas, minX, minY, w, h, 0, 0, w, h);
+
+        // === 擷取像素，去掉接近白色的部分 ===
+        const imageData = tempCtx.getImageData(0, 0, w, h);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          if (r > 240 && g > 240 && b > 240) {
+            data[i] = data[i + 1] = data[i + 2] = 0; // 避免殘色
+            data[i + 3] = 0; // 設透明
+          }
+        }
+        tempCtx.putImageData(imageData, 0, 0);
+
+        // === 轉成圖片物件 ===
+        cutImage = new Image();
+        cutImage.onload = () => {
+          const cutResultDiv = document.getElementById("cutResult");
+          cutResultDiv.innerHTML = "";
+          cutResultDiv.appendChild(cutImage);
+        };
+        cutImage.src = tempCanvas.toDataURL("image/png");
+
+        // Reset 狀態
+        lasso_Mode.deactivate();
+      }
+    } else {
+      lasso_Mode.set_isDrawing();
+      lasso_Mode.addPoints(x, y);
+    }
   }
   if (pasteCutImage_Mode.check_active() && cutImage) {
     const imgW = cutImage.width;

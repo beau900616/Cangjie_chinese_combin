@@ -3,6 +3,11 @@ body {
   display: flex;
   margin: 20px;
 }
+#main-container {
+  display: flex;
+  flex-direction: row; /* 強制水平排列 */
+  gap: 10px;
+}
 #sidebar {
   display: grid;
   grid-template-columns: repeat(2, 1fr); /* 兩欄 */
@@ -34,6 +39,12 @@ body {
   background: #eee;
   border-radius: 6px;
   font-size: 14px;
+}
+#cutResult img {
+  max-width: 100%;   /* 不會超出父容器寬度 */
+  max-height: 150px; /* 控制顯示的高度 */
+  object-fit: contain; /* 保持比例縮放 */
+  border: 1px solid #ccc; /* 可選，讓裁切結果有個邊框 */
 }
 
 .char-btn {
